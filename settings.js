@@ -10,7 +10,7 @@ exports.create = function() {
     port: 8080,
     services: [],
     serviceInterval: 20000,
-    serviceDelay: 500
+    serviceDelay: 20000
   };
 
   settings['olivier'] = {
@@ -21,21 +21,31 @@ exports.create = function() {
       check: 'http',
       host: '127.0.0.1', 
       port: '5984',
-      path: '/'
+      path: '/',
+      notifyOnTwitter: true,
+      twitter: {
+        consumer_key: 'YOUR KEY HERE',
+        consumer_secret: 'SECRET',
+        access_token_key: 'Aceess key',
+        access_token_secret: 'Token'
+      }
     }, {
       name: 'bazoud.free.fr', 
       label: 'Olivier Bazoud blog',
       check: 'http',
       host: 'bazoud.free.fr', 
       port: '80',
-      path: '/'
+      path: '/',
+      notifyOnTwitter: true
+      
     }, {
       name: 'bazoud.free.fr php',
       label: 'Olivier Bazoud blog test.php',
       check: 'http',
       host: 'bazoud.free.fr',
       port: '80',
-      path: '/test.php'
+      path: '/test.php',
+      notifyOnTwitter: false
     }, {
       name: 'redis', 
       label: 'Redis server @ local',
@@ -43,21 +53,8 @@ exports.create = function() {
       host: '127.0.0.1', 
       port: '6379',
       cmd: 'PING\r\n'
-    }, {
-      name: 'FTP Local',
-      label: 'Ftp @ local',
-      check: 'ftp',
-      host: 'localhost',
-      port: '21',
-      username: 'statusdashboard',
-      password: 'statusdashboard'
-    }, {
-      name: 'PID file',
-      label: 'Pid @ local',
-      check: 'pidfile',
-      pidfile: '/tmp/terminal.pid'
     }],
-    serviceInterval: 5000,
+    serviceInterval: 20000,
   };
 
   settings['nodester'] = {

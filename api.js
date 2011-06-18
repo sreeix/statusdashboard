@@ -4,6 +4,7 @@ var net = require('net');
 var sys = require('sys');
 var fs = require('fs');
 var logger = require('util');
+var twitter = require('twitter');
 var _ = require('underscore')._;
 var settings = require('./settings').create();
 var EventEmitter = require('events').EventEmitter;
@@ -25,6 +26,7 @@ updatingServices = function() {
     status.services[i].statusCode = 0;
     status.services[i].message = '';
     commands[settings.services[i].check].call(null, settings.services[i], status.services[i]);
+    
   }
   setTimeout(function() {
     var statusTab = _.map(status.services, function(value, key) { return value; });
@@ -38,6 +40,23 @@ updatingServices = function() {
     controller.emit("refresh", status);
   }, settings.serviceDelay);
 };
+var successHook = function(options, service){
+  if(options.notifyOnTwitter === true && options.twitter){
+    new twitter(options.twitter).verifyCredentials(function (data) {
+            sys.puts(sys.inspect(data));
+    }).updateStatus(service.name +"is now "+service.status );
+  }
+};
+
+var errorHook = function(options, service){
+  sys.puts(service.name +" is in status "+ service.status);
+  if(options.notifyOnTwitter === true && options.twitter){
+    new twitter(options.twitter).verifyCredentials(function (data) {
+            sys.puts(sys.inspect(data));
+    }).updateStatus(service.name +" is in status "+ service.status+ " at "+ new Date().toString(), function(data){});
+  }
+};
+
 
 var commands = {
   http : function(serviceDefinition, service) {
@@ -66,6 +85,7 @@ var commands = {
       service.status = "down";
       service.statusCode = 0;
       service.message = e.message;
+      errorHook(serviceDefinition, service );
     });
   },
   https : function(serviceDefinition, service) {
@@ -93,6 +113,8 @@ var commands = {
       service.status = "down";
       service.statusCode = 0;
       service.message = e.message;
+      errorHook(serviceDefinition, service );
+      
     });
   },
   tcp : function(serviceDefinition, service) {
@@ -113,6 +135,8 @@ var commands = {
       service.status = "down";
       service.statusCode = e.errno;
       service.message = e.message;
+      errorHook(serviceDefinition, service );
+      
     });
   },
   ftp : function(serviceDefinition, service) {
@@ -150,6 +174,7 @@ var commands = {
       service.status = "down";
       service.statusCode = status;
       service.message = message;
+      errorHook(serviceDefinition, service );
     };
 
     stream.addListener('error', function (e) {
@@ -180,6 +205,8 @@ var commands = {
       service.status = "down";
       service.statusCode = e.errno;
       service.message = e.message;
+      errorHook(serviceDefinition, service );
+      
       return;
     }
   }
