@@ -37,12 +37,54 @@ How To Use
 or fork it
 * node server.js
 
-See settings.js to have your own settings. For example, in my local computer:
+Add your entry in settings.js. 
 
-* export APP_ENV=olivier
+<pre class="json">
+settings['xxx'] = {
+...
+};
+</pre>
+
+* export APP_ENV=xxx
 * node server.js
 
-Daemon init script for node.js: [https://gist.github.com/715255](https://gist.github.com/715255)
+You can override settings with an external settings for private information like passwords, ..
+
+* vi ~/.statusdashboard/settings.js
+<pre class="json">
+exports.create = function() {
+  var appSettings = {
+    port: 8081,
+    services: [{
+      name: 'FTP Local',
+      password: 'xxx'
+    }]
+  };
+  return appSettings;
+};
+}</pre>
+
+* export APP_SETTINGS=~/.statusdashboard/settings.js
+
+
+Service
+=======
+
+Daemon init script for node.js: [https://gist.github.com/1123553](https://gist.github.com/1123553)
+
+Plugins
+=======
+
+Some plugins are available out-of-the-box:
+
+* Console
+* IRC bot
+* Twitter
+* History, save service state in <a href="http://redis.io">Redis</a> (Thanks to <a href="https://github.com/sreeix">sreeix</a> initial pull request) and graph it!
+
+<img src="http://bazoud.free.fr/wp-content/uploads/ssd7a.png" alt="">
+
+<img src="http://bazoud.free.fr/wp-content/uploads/ssd8a.png" alt="">
 
 REST API
 =======
@@ -65,11 +107,41 @@ $ curl http://127.0.0.1:8080/api/summarize
 {"up":4,"critical":0,"down":1,"unknown":1}
 </pre>
 
+* Version of application
+<pre class="terminal">
+$ curl -iX GET http://127.0.0.1:8080/api/version
+{"commit":"641b97cbcfdc53b1b2b825d588afe08e412471d4","author":"obazoud","committer":"obazoud","date":"Fri, 12 Aug 2011 10:15:27 GMT"}
+</pre>
+
+* And plugin can contribute to statusdashboard REST API
+<pre class="terminal">
+$ curl http://127.0.0.1:8080/api/history/service/couchdb
+["{\"time\":1310024374699,\"status\":\"up\",\"message\":\"\",\"code\":200}","{\"time\":1310024379591,\"status\":\"up\",\"message\":\"\",\"code\":200}", ...]
+</pre>
+
+
 
 Early adopters
 =======
 
-* See http://status.exoplatform.org
+* [Exoplatform](http://status.exoplatform.org)
 
 <img src="http://bazoud.free.fr/wp-content/uploads/ssd4.png" alt="status.exoplatform.org">
+
+* [Shufflr](https://twitter.com/shufflr)
+
+<img src="http://bazoud.free.fr/wp-content/uploads/ssd5.png" alt="">
+
+* [Ekino](http://www.ekino.com)
+
+<img src="http://bazoud.free.fr/wp-content/uploads/ssd9.png" alt="">
+
+* IRC Plugin screenshot @ exoplatform
+
+<img src="http://bazoud.free.fr/wp-content/uploads/ssd6.png" alt="">
+
+In the news
+=======
+
+* IT Wars: [StatusDashboard monitoring avec Node.js](http://www.it-wars.com/article265/statusdashboard-monitoring-avec-node-js)
 

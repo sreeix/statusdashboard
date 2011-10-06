@@ -1,4 +1,7 @@
 var os = require('os');
+var sys = require('sys');
+var fs = require('fs');
+var path = require("path");
 var logger = require('util');
 
 exports.create = function() {
@@ -8,6 +11,9 @@ exports.create = function() {
     title: 'Services Status Dashboard',
     hostname: '127.0.0.1',
     port: 8080,
+    client: {
+      transports: []
+    },
     services: [],
     serviceInterval: 20000,
     serviceDelay: 500
@@ -15,6 +21,9 @@ exports.create = function() {
 
   settings['olivier'] = {
     port: 8080,
+    client: {
+      transports: ['websocket']
+    },
     services: [{
       name: 'couchdb', 
       label: 'Couchdb server @ local',
@@ -30,14 +39,14 @@ exports.create = function() {
       port: '80',
       path: '/'
     }, {
-      name: 'bazoud.free.fr (Normal)',
+      name: 'bazoud.free.fr-normal',
       label: 'Olivier Bazoud blog: Normal',
       check: 'http',
       host: 'bazoud.free.fr',
       port: '80',
       path: '/test.php'
     }, {
-      name: 'bazoud.free.fr (FixedValue: ok)',
+      name: 'bazoud.free.fr-fixedvalue-ok',
       label: 'Olivier Bazoud blog: FixedValue ok',
       check: 'http',
       host: 'bazoud.free.fr',
@@ -48,7 +57,7 @@ exports.create = function() {
         'ko': 'critical'
       }
     }, {
-      name: 'bazoud.free.fr php (FixedValue: ko)',
+      name: 'bazoud.free.fr-fixedvalue-ko)',
       label: 'Olivier Bazoud blog: FixedValue: ko',
       check: 'http',
       host: 'bazoud.free.fr',
@@ -59,7 +68,7 @@ exports.create = function() {
         'ko': 'critical'
       }
     }, {
-      name: 'bazoud.free.fr php (RangeValues: 10)',
+      name: 'bazoud.free.fr-rangevalues-10',
       label: 'Olivier Bazoud blog: RangeValues 10',
       check: 'http',
       host: 'bazoud.free.fr',
@@ -78,7 +87,7 @@ exports.create = function() {
       cmd: 'PING\r\n',
       rcv: '+PONG\r\n'
     }, {
-      name: 'FTP Local',
+      name: 'FTP-Local',
       label: 'Ftp @ local',
       check: 'ftp',
       host: 'localhost',
@@ -86,19 +95,67 @@ exports.create = function() {
       username: 'statusdashboard',
       password: 'statusdashboard'
     }, {
-      name: 'PID file',
+      name: 'PID-file',
       label: 'Pid @ local',
       check: 'pidfile',
       pidfile: '/tmp/terminal.pid'
     }],
     serviceInterval: 5000,
+    plugins : {
+      console : {
+        enable: false
+      },
+      irc : {
+        enable: false,
+        server: 'irc.freenode.net',
+        nick: 'status',
+        options: {
+          debug: false,
+          port: 8001,
+          channels: ['#statusdashboard']
+        }
+      },
+      twitter: {
+        enable: false,
+        consumer_key: "",
+        consumer_secret: "",
+        access_token_key: "",
+        access_token_secret: ""
+      },
+      history: {
+        enable: true,
+        host: "127.0.0.1",
+        port: 6379,
+        namespace: "statusdashboard",
+        options: {
+        },
+        client: true
+      },
+      mail: {
+        enable: false,
+        sender: 'xxx',
+        to: 'xxx',
+        subject: '[statusdashboard]: Alert',
+        options: {
+          nodemailer: {
+            host: 'smtp.gmail.com',
+            port: 465,
+            use_authentication: true,
+            ssl: true,
+            user: 'xxx',
+            pass: 'xxx',
+            debug: false
+          }
+        }
+      }
+    }
   };
 
   settings['nodester'] = {
     port: 10487,
     services: [{
-      name: 'bazoud.free.fr', 
-      label: 'Olivier Bazoud blog',
+      name: 'bazoud.free.fr - test1',
+      label: 'Olivier Bazoud blog test1',
       check: 'http',
       host: 'bazoud.free.fr', 
       port: '80',
@@ -107,8 +164,8 @@ exports.create = function() {
         'Host': 'bazoud.free.fr'
       }
     }, {
-      name: 'bazoud.free.fr', 
-      label: 'Olivier Bazoud blog fail',
+      name: 'bazoud.free.fr - test2',
+      label: 'Olivier Bazoud blog test2',
       check: 'http',
       host: 'bazoud.free.fr', 
       port: '80',
@@ -116,23 +173,64 @@ exports.create = function() {
     }]
   };
 
+  var mySettings = defaults;
+
+  // logger.log("Dumping defaults:\r\n" + JSON.stringify(mySettings));
+
   if (process.env.APP_ENV) {
-    var settings = merge(defaults, settings[process.env.APP_ENV]);
-    return settings;
+    logger.log("Loading settings: " + process.env.APP_ENV);
+    mySettings = merge(mySettings, settings[process.env.APP_ENV]);
   }
 
-  return defaults;
+  // logger.log("Dumping after APP_ENV:\r\n" + JSON.stringify(mySettings));
+
+  if (process.env.APP_SETTINGS) {
+    logger.log("Loading appSettings: " + process.env.APP_SETTINGS);
+    if (path.existsSync(process.env.APP_SETTINGS)) {
+      appSettings = require(process.env.APP_SETTINGS).create();
+      mySettings = merge(mySettings, appSettings);
+    } else {
+      logger.log("WARN: " + process.env.APP_SETTINGS + " does not exist or not a file.");
+    }
+  }
+
+  // logger.log("Dumping after APP_SETTINGS:\r\n" + JSON.stringify(mySettings));
+
+  return mySettings;
 };
 
 function merge(obj1, obj2) {
   for (var p in obj2) {
     try {
-      if (obj2[p].constructor == Object) {
-        obj1[p] = merge(obj1[p], obj2[p]);
+      if (typeof(obj2[p]) == 'object') {
+        if (obj2[p].constructor == Array) {
+          if (obj2[p].length != 0) {
+            for (var j in obj2[p]) {
+              if (obj1[p].length == 0) {
+                obj1[p][0] = obj2[p][j];
+              } else {
+                var found = false;
+                for (var i in obj1[p]) {
+                  if (obj1[p][i].name == obj2[p][j].name) {
+                    obj1[p][i] = merge(obj1[p][i], obj2[p][j]);
+                    found = true;
+                    break;
+                  }
+                }
+                if (!found) {
+                  obj1[p][obj1[p].length] = obj2[p][j];
+                }
+              }
+            }
+          }
+        } else {
+          obj1[p] = merge(obj1[p], obj2[p]);
+        }
       } else {
         obj1[p] = obj2[p];
       }
     } catch(e) {
+      // logger.log(e);
       obj1[p] = obj2[p];
     }
   }

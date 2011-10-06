@@ -10,13 +10,18 @@ var EventEmitter = require('events').EventEmitter;
 var controller = new EventEmitter();
 module.exports = controller;
 
-var plugins =[];
-fs.readdir('./plugins', function(err, files){
-  if(!err){
-   plugins = _.map(files, function(file){
-     return require('./plugins/'+file).create(controller);
-   });
- }
+fs.readdir(__dirname + '/plugins', function(err, pluginDirectories) {
+  if (!err) {
+    _.each(pluginDirectories, function(directory) {
+      if (fs.statSync(__dirname + '/plugins/' + directory).isDirectory() && fs.statSync(__dirname + '/plugins/' + directory + '/' + directory + '_plugin.js').isFile()) {
+        return require(__dirname + '/plugins/' + directory + '/' + directory + '_plugin.js').create(controller, settings);
+      } else {
+        logger.log("Excluding plugin: " + directory);
+      }
+    });
+  } else {
+    logger.log("Error when creating plugin: " + err);
+  }
 });
   
 var status = {};
@@ -69,6 +74,20 @@ var checkRange = function(min, max, value) {
     return true;
   }
   return false;
+};
+var checkStatusDashboardResponse = function(response, serviceDefinition, service) {
+  if(response.statusCode === 200){
+    response.on('data', function(chunk){
+      summary = JSON.parse(chunk);
+      if(summary.critical === 0 && summary.down === 0 && summary.unknown ===0){
+        service.status = 'up';
+      }else {
+        service.status = 'down';
+        service.message = "Services up: "+ summary.up + ", Services down: "+ summary.down + ", Services critical: "+summary.critical + ", Services unknown: "+summary.unknown; 
+      }
+      controller.emit(service.status, service);
+    });
+  }
 };
 
 var checkHttpValueResponse = function(response, serviceDefinition, service) {
@@ -264,6 +283,24 @@ var commands = {
     }
     service.status = "up";
     controller.emit(service.status, service);
+  },
+  statusdashboard : function(serviceDefinition, service) {
+    var options = {
+      host: serviceDefinition.host,
+      port: serviceDefinition.port,
+      path: '/api/summarize'
+    };
+    http.get(options, function(response) {
+      service.message = '';
+      checkHttpStatusCode(response, service);
+      checkStatusDashboardResponse(response, serviceDefinition, service);
+    })
+    .on('error', function(e) {
+      service.status = "down";
+      service.statusCode = 0;
+      service.message = e.message;
+      controller.emit(service.status, service);
+    });
   }
 };
 
@@ -286,7 +323,44 @@ exports.getServicesElement = function(value) {
   return status.services[value];
 };
 
+module.exports.configClient = function(req, res) {
+  res.send(200, {}, JSON.stringify(settings.client));
+}
+
+module.exports.pluginsClient = function(req, res) {
+  var plugins = _.map(_.select(_.map(settings.plugins, function(num, key) { return { name:key, enable: num.enable, client: num.client } }), function(data) { return (data.enable == true && data.client == true); }), function(num, key) { return { name:num.name } });
+  res.send(200, {}, JSON.stringify(plugins));
+}
+
 module.exports.getStatus = function() {
   return status;
 };
+
+module.exports.version = function(req, res) {
+  var gitteh = require("gitteh");
+  var path = require("path");
+
+  var repository = gitteh.openRepository(path.join(__dirname, ".", ".git"));
+  var headRef = repository.getReference("HEAD");
+  headRef = headRef.resolve();
+  var walker = repository.createWalker();
+  walker.sort(gitteh.GIT_SORT_TIME);
+  walker.push(headRef.target);
+  var commit = walker.next();
+  if (commit) {
+    res.send(404, {}, { commit: commit.id, author: commit.author.name, committer: commit.committer.name, date: commit.committer.time.toUTCString(), message: commit.message});
+  } else {
+    res.send(404, {}, {});
+  }
+}
+
+var startupTime = new Date().valueOf();
+
+module.exports.uptime = function(req, res) {
+  var humanized_time_span = require(__dirname + '/lib/humanized_time_span.js');
+  var now = new Date().valueOf();
+  var uptime = now - startupTime;
+  var human = humanized_time_span.humanized_time_span(startupTime, now);
+  res.send(200, {}, { startupTime: startupTime, now: now, uptime: uptime, human: human});
+}
 
